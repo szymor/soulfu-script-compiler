@@ -8,6 +8,8 @@
 
 #include "soulfu_script.h"
 
+#define SRC_BUFFER_SIZE		(1 * 1024 * 1024)
+#define RUN_BUFFER_SIZE		(64 * 1024)
 #define PATH_LEN			(256)
 
 enum ErrCode
@@ -32,6 +34,8 @@ enum Action action = A_NONE;
 
 void help(void);
 int compile(void);
+int alloc_buffer(struct Buffer *buff, unsigned int size);
+void free_buffer(struct Buffer *buff);
 
 int main(int argc, char *argv[])
 {
@@ -97,11 +101,63 @@ void help(void)
 
 int compile(void)
 {
-	if ('\0' == input_path[0] || '\0' == output_path[0])
+	if ('\0' == input_path[0])
 	{
-		printf("Error: no input or output file provided.\n");
+		printf("Error: no input file provided.\n");
+		return EC_BADARGS;
+	}
+	if ('\0' == output_path[0])
+	{
+		printf("Error: no output file provided.\n");
 		return EC_BADARGS;
 	}
 
-	src_headerize(input_path);
+	struct Buffer src_buffer;
+	alloc_buffer(&src_buffer, SRC_BUFFER_SIZE);
+	struct Buffer run_buffer;
+	alloc_buffer(&run_buffer, RUN_BUFFER_SIZE);
+
+	printf("Generating header file for %s...\n", input_path);
+
+	FILE *input = fopen(input_path, "rb");
+	if (NULL == input)
+	{
+		printf("Error: cannot open input file.\n");
+		return EC_NOFILE;
+	}
+	fseek(input, 0, SEEK_END);
+	src_buffer.used = ftell(input);
+	fseek(input, 0, SEEK_SET);
+	fread(src_buffer.mem, src_buffer.used, 1, input);
+	fclose(input);
+
+	src_headerize(&src_buffer, &run_buffer);
+
+	FILE *output = fopen(output_path, "wb");
+	fwrite(run_buffer.mem, run_buffer.used, 1, output);
+	fclose(output);
+
+	free_buffer(&src_buffer);
+	free_buffer(&run_buffer);
+}
+
+int alloc_buffer(struct Buffer *buff, unsigned int size)
+{
+	buff->mem = malloc(size);
+	if (!buff->mem)
+		return -1;
+	buff->max = size;
+	buff->used = 0;
+	return 0;
+}
+
+void free_buffer(struct Buffer *buff)
+{
+	if (buff->mem)
+	{
+		free(buff->mem);
+		buff->mem = NULL;
+		buff->used = 0;
+		buff->max = 0;
+	}
 }
