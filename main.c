@@ -108,16 +108,23 @@ int compile(void)
 	}
 	if ('\0' == output_path[0])
 	{
-		printf("Error: no output file provided.\n");
-		return EC_BADARGS;
+		// generate output filename from input filename
+		char *base = strrchr(input_path, '/');
+		base = base ? base + 1 : input_path;
+		strcpy(output_path, base);
+
+		base = strrchr(output_path, '.');
+		if (base) *base = '\0';
+		strcat(output_path, ".RUN");
 	}
+
+	printf("Input file: %s\n", input_path);
+	printf("Output file: %s\n", output_path);
 
 	struct Buffer src_buffer;
 	alloc_buffer(&src_buffer, SRC_BUFFER_SIZE);
 	struct Buffer run_buffer;
 	alloc_buffer(&run_buffer, RUN_BUFFER_SIZE);
-
-	printf("Generating header file for %s...\n", input_path);
 
 	FILE *input = fopen(input_path, "rb");
 	if (NULL == input)
