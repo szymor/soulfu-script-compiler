@@ -8,6 +8,7 @@
 
 #include "soulfu_script.h"
 
+#define DEFAULT_SDF_DIR		"sfd"
 #define SRC_BUFFER_SIZE		(1 * 1024 * 1024)
 #define RUN_BUFFER_SIZE		(64 * 1024)
 #define PATH_LEN			(256)
@@ -16,9 +17,8 @@ enum ErrCode
 {
 	EC_NONE,
 	EC_NOACTION,
-	EC_NOFILE,
-	EC_BADARGS,
-	EC_BADMAGIC
+	EC_NODIR,
+	EC_BADARGS
 };
 
 enum Action
@@ -28,8 +28,8 @@ enum Action
 	A_COMPILE,
 };
 
+char input_path[PATH_LEN] = DEFAULT_SDF_DIR;
 char output_path[PATH_LEN] = "";
-char input_path[PATH_LEN] = "";
 enum Action action = A_NONE;
 
 void help(void);
@@ -99,50 +99,97 @@ void help(void)
 	printf(contents);
 }
 
+char *get_output_filename(char *input_filename)
+{
+	static char outbuff[PATH_LEN];
+	// generate output filename from input filename
+	char *base = strrchr(input_filename, '/');
+	base = base ? base + 1 : input_filename;
+	strcpy(outbuff, base);
+
+	base = strrchr(outbuff, '.');
+	if (base) *base = '\0';
+	strcat(outbuff, ".RUN");
+	return outbuff;
+}
+
+int read_file_to_buffer(char *filename, struct Buffer *buff)
+{
+	FILE *input = fopen(filename, "rb");
+	if (NULL == input)
+	{
+		return -1;
+	}
+	fseek(input, 0, SEEK_END);
+	buff->used = ftell(input);
+	fseek(input, 0, SEEK_SET);
+	fread(buff->mem, buff->used, 1, input);
+	fclose(input);
+	return 0;
+}
+
+int write_buffer_to_file(char *filename, const struct Buffer *buff)
+{
+	FILE *output = fopen(filename, "wb");
+	fwrite(buff->mem, buff->used, 1, output);
+	fclose(output);
+}
+
 int compile(void)
 {
-	if ('\0' == input_path[0])
-	{
-		printf("Error: no input file provided.\n");
-		return EC_BADARGS;
-	}
 	if ('\0' == output_path[0])
 	{
-		// generate output filename from input filename
-		char *base = strrchr(input_path, '/');
-		base = base ? base + 1 : input_path;
-		strcpy(output_path, base);
-
-		base = strrchr(output_path, '.');
-		if (base) *base = '\0';
-		strcat(output_path, ".RUN");
+		strcpy(output_path, input_path);
 	}
-
-	printf("Input file: %s\n", input_path);
-	printf("Output file: %s\n", output_path);
+	printf("Input path: %s\n", input_path);
+	printf("Output path: %s\n", output_path);
 
 	struct Buffer src_buffer;
 	alloc_buffer(&src_buffer, SRC_BUFFER_SIZE);
 	struct Buffer run_buffer;
 	alloc_buffer(&run_buffer, RUN_BUFFER_SIZE);
 
-	FILE *input = fopen(input_path, "rb");
-	if (NULL == input)
+	DIR *dirp = opendir(input_path);
+	if (NULL == dirp)
 	{
-		printf("Error: cannot open input file.\n");
-		return EC_NOFILE;
+		printf("Error: data directory not found.\n");
+		return EC_NODIR;
 	}
-	fseek(input, 0, SEEK_END);
-	src_buffer.used = ftell(input);
-	fseek(input, 0, SEEK_SET);
-	fread(src_buffer.mem, src_buffer.used, 1, input);
-	fclose(input);
 
-	src_headerize(&src_buffer, &run_buffer);
+#ifdef __MINGW32__
+	mkdir(output_path);
+#else
+	mkdir(output_path, 0755);
+#endif
 
-	FILE *output = fopen(output_path, "wb");
-	fwrite(run_buffer.mem, run_buffer.used, 1, output);
-	fclose(output);
+	printf("Headerizing...\n");
+	struct dirent *entry = NULL;
+	while (entry = readdir(dirp))
+	{
+		if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, ".."))
+		{
+			if (strstr(entry->d_name, ".SRC"))
+			{
+				char inpath[PATH_LEN];
+				sprintf(inpath, "%s/%s", input_path, entry->d_name);
+				read_file_to_buffer(inpath, &src_buffer);
+				if (SSE_NONE != src_headerize(&src_buffer, &run_buffer))
+				{
+					printf("Headerizing failed for %s.\n", inpath);
+				}
+
+				char outpath[PATH_LEN];
+				sprintf(outpath, "%s/%s", output_path, get_output_filename(entry->d_name));
+				write_buffer_to_file(outpath, &run_buffer);
+			}
+		}
+	}
+	closedir(dirp);
+	printf("Headerizing done.\n");
+
+	// compilerizing needs header data from all SRC files
+	// look at src_mega_find_function for details
+	//src_compilerize(&src_buffer, &run_buffer);
 
 	free_buffer(&src_buffer);
 	free_buffer(&run_buffer);
