@@ -12,7 +12,7 @@
 #endif
 
 #define log_message
-#define debug	/*printf*/
+#define debug	printf
 
 #define repeat(A, B) for(A=0;  A<B;  A++)
 
@@ -193,6 +193,9 @@
 #define SRC_REQUEST_ARGUMENTS   2   // Return pointer to a function's argument/returncode string
 #define SRC_REQUEST_FILESTART   3   // Return pointer to the start of the function's run file data
 
+static char *working_dir = NULL;
+struct Buffer tempbuff;
+
 static enum SSError error = SSE_NONE;
 
 static char define_token[SRC_MAX_DEFINE][SRC_MAX_TOKEN_SIZE];  // ex. "TRUE"
@@ -293,6 +296,10 @@ void src_generate_opcodes(int token_count);
 int src_find_string_entry(unsigned char* filedata, char* stringname);
 unsigned char* src_mega_find_function(unsigned char* functionstring, unsigned char* filename, unsigned char request);
 void src_set_priority(int start, int i, int end, signed char any_type);
+unsigned char* sdf_find_filetype(char *filename, char *filetype);
+void obj_reset_property(void);
+void obj_add_property(char* tag, char type, char* offset);
+signed char sdf_open(char* filename);
 // ---
 
 enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
@@ -330,7 +337,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 
 	// Make a list of all the functions in this file...  Figure out offsets in another pass...
 	run->used += 4;  // Skip a word for the string count...  Filled in after counting...
-	debug("Headerizing functions...\n");
+	//debug("Headerizing functions...\n");
 	unsigned short number_of_functions = 0;
 	while (sdf_read_line())
 	{
@@ -375,7 +382,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 					// Now stick the function address and name in our RUN file...
 					sprintf((run->mem + run->used), "%c%c%s%c", 0, 0, token_buffer[i], 0);
 					run->used += strlen(token_buffer[i]) + 3;
-					debug("function...  %s()\n", token_buffer[i]);
+					//debug("function...  %s()\n", token_buffer[i]);
 
 					// Now store the return code type...
 					sprintf((run->mem + run->used), "%c", returncode);
@@ -430,7 +437,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 	}
 
 	// Now search for any #defines...  Just in case someone #define'd a string...
-	debug("Headerizing #define's...\n");
+	//debug("Headerizing #define's...\n");
 
 	sdf_read_first_line = FALSE;
 	sdf_read_remaining = script->used;
@@ -487,7 +494,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 	next_token_may_be_negative = TRUE;
 
 	// Make a list of all the functions in this file...  Figure out offsets in another pass...
-	debug("Headerizing strings...\n");
+	//debug("Headerizing strings...\n");
 	unsigned short number_of_strings = 0;
 	while (sdf_read_line())
 	{
@@ -544,7 +551,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 					int def = src_get_define(token_buffer[i]);
 					if(def >= 0)
 					{
-						debug("Sneaky define... %s\n", define_token[def]);
+						//debug("Sneaky define... %s\n", define_token[def]);
 
 						// It was a sneaky #define...  Search for " characters...
 						char read_char = define_value[def][0];
@@ -594,7 +601,7 @@ src_headerize_error_handle:
 	return error;
 }
 
-enum SSError src_compilerize(struct Buffer *script, struct Buffer *run)
+enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *filename)
 {
 	// <ZZ> This function compiles an SRC file that has been stored in memory.
 	int i;
@@ -943,8 +950,7 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run)
 					last_indent = indent;
 
 					// Clear out the RPN data and fill in some of the helper arrays...
-					// TODO: implement searching through all headerized files
-					//src_make_arrays(token_count, filename);
+					src_make_arrays(token_count, filename);
 
 					// Figure out the RPN order...
 					token_order = 1;
@@ -1422,7 +1428,7 @@ static void src_add_define(char* token, char* value, char temporary_level)
 		sdf_read_file = tempptr;
 
 
-		debug("INFO:         Defined...  %s == %s\n", define_token[define_to_use], define_value[define_to_use]);
+		//debug("INFO:         Defined...  %s == %s\n", define_token[define_to_use], define_value[define_to_use]);
 
 
 		// Increment the number of defines if we added a new one
@@ -2710,29 +2716,26 @@ unsigned char* src_mega_find_function(unsigned char* functionstring, unsigned ch
 
 	// Open the file that we think it's in...
 	entry = NULL;
-	// TODO: replace references to sdf files with ones to filesystem files
-	//index = sdf_find_filetype(filename, SDF_FILE_IS_RUN);
-	if(index != NULL)
+	// Found the file, so now look for the function
+	data = sdf_find_filetype(filename, "RUN");
+	if (data)
 	{
-		// Found the file, so now look for the function
-		data = (unsigned char*) sdf_read_unsigned_int(index);
 		entry_offset = src_find_function_entry(data, functionname);
 		if(entry_offset)
 		{
 			entry = data + entry_offset;
 		}
 	}
-	if(entry == NULL)
+
+	// Didn't find the function on our first guess, so let's check GENERIC.RUN
+	if (entry == NULL)
 	{
-		// Didn't find the function on our first guess, so let's check GENERIC.RUN
-		if(must_fix_dot == FALSE)
+		if (must_fix_dot == FALSE)
 		{
-			// refer to todo above
-			//index = sdf_find_filetype("GENERIC", SDF_FILE_IS_RUN);
-			if(index != NULL)
+			// Found the file, so now look for the function
+			data = sdf_find_filetype("GENERIC", "RUN");
+			if (data)
 			{
-				// Found the file, so now look for the function
-				data = (unsigned char*) sdf_read_unsigned_int(index);
 				entry_offset = src_find_function_entry(data, functionname);
 				if(entry_offset)
 				{
@@ -2743,7 +2746,7 @@ unsigned char* src_mega_find_function(unsigned char* functionstring, unsigned ch
 	}
 
 	// Put the dot back if we took it out...
-	if(must_fix_dot)
+	if (must_fix_dot)
 	{
 		*(functionname-1) = '.';
 	}
@@ -2751,11 +2754,6 @@ unsigned char* src_mega_find_function(unsigned char* functionstring, unsigned ch
 	// Now see about filling the request...
 	if(entry != NULL)
 	{
-		// Found the function's entry in the RUN file...  So log it...
-		#ifdef VERBOSE_COMPILE
-			log_message("INFO:   Mega_found function %s", functionstring);
-		#endif
-
 		// And return whatever was requested...
 		if(request == SRC_REQUEST_ENTRY)
 		{
@@ -2796,4 +2794,172 @@ void src_set_priority(int start, int i, int end, signed char any_type)
 			}
 		}
 	}
+}
+
+unsigned char* sdf_find_filetype(char *filename, char *filetype)
+{
+    // <ZZ> This function finds a matching entry, it returns a pointer
+    //      to the data. If not, it returns NULL.
+
+	char path[256];
+	sprintf(path, "%s/%s.%s", working_dir, filename, filetype);
+
+	if (read_file_to_buffer(path, &tempbuff) < 0)
+		return NULL;
+
+    return tempbuff.mem;
+}
+
+signed char src_define_setup(void)
+{
+    // <ZZ> This function looks at "DEFINE.TXT" to see what global #define's we've got,
+    //      including ID strings.  It returns TRUE if it worked okay, or FALSE if not.
+    unsigned char indent;
+
+
+    obj_reset_property();
+    next_token_may_be_negative = TRUE;
+    src_num_define = 0;
+    if (sdf_open("DEFINE.TXT"))
+    {
+        log_message("INFO:   Setting up the global #defines...");
+        while(sdf_read_line())
+        {
+            // Count the indentation (by 2's), and skip over any whitespace...
+            indent = count_indentation(sdf_read_file);
+            sdf_read_file+=indent;
+            sdf_read_remaining-=indent;
+            indent = indent>>1;
+
+
+            // Check for a #define...
+            if(sdf_read_file[0] == '#')
+            {
+                if(sdf_read_file[1] == 'd')
+                {
+                    if(sdf_read_file[2] == 'e')
+                    {
+                        if(sdf_read_file[3] == 'f')
+                        {
+                            if(sdf_read_file[4] == 'i')
+                            {
+                                if(sdf_read_file[5] == 'n')
+                                {
+                                    if(sdf_read_file[6] == 'e')
+                                    {
+                                        sdf_read_file+=7;
+                                        sdf_read_remaining-=7;
+                                        if(src_read_token(token_buffer[0]))
+                                        {
+                                            src_add_define(token_buffer[0], sdf_read_file, SRC_PERMANENT);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else if(sdf_read_file[1] == 'p')
+                {
+                    if(sdf_read_file[2] == 'r')
+                    {
+                        if(sdf_read_file[3] == 'o')
+                        {
+                            if(sdf_read_file[4] == 'p')
+                            {
+                                if(sdf_read_file[5] == 'e')
+                                {
+                                    if(sdf_read_file[6] == 'r')
+                                    {
+                                        sdf_read_file+=7;
+                                        sdf_read_remaining-=7;
+                                        if(src_read_token(token_buffer[0]))   // tag
+                                        {
+                                            if(src_read_token(token_buffer[1]))  // type
+                                            {
+                                                if(src_read_token(token_buffer[2]))  // offset
+                                                {
+                                                    obj_add_property(token_buffer[0], token_buffer[1][0], token_buffer[2]);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+		debug("INFO:   %d of %d properties used\n", obj_num_property, MAX_PROPERTY);
+		debug("INFO:   %d of %d defines used\n", src_num_define, SRC_MAX_DEFINE);
+        return TRUE;
+    }
+    debug("ERROR:  DEFINE.TXT could not be found in the database\n");
+    return FALSE;
+}
+
+void obj_reset_property(void)
+{
+    // <ZZ> This function clears out our properties
+    obj_num_property = 0;
+}
+
+
+void obj_add_property(char* tag, char type, char* offset)
+{
+    // <ZZ> This function registers a new property index...  The x in window.x for example.
+    //      Tag is the name of the property, type is F or I or something, offset is the
+    //      location of the data for this property relative to the start of the object's
+    //      data (and is stored in ASCII text... "202" not the number 202).
+    int i;
+
+    if(obj_num_property < MAX_PROPERTY)
+    {
+        // Copy the name
+        repeat(i, 8) { property_token[obj_num_property][i] = tag[i]; }
+        property_token[obj_num_property][7] = 0;
+
+        // Copy the type
+        property_type[obj_num_property] = type;
+
+        // Copy the offset
+        sscanf(offset, "%d", &i);
+        property_offset[obj_num_property] = i;
+
+        #ifdef VERBOSE_COMPILE
+            log_message("INFO:   Added property %s as number %d...  Type %c, Offset %d", property_token[obj_num_property], obj_num_property, property_type[obj_num_property], property_offset[obj_num_property]);
+        #endif
+        obj_num_property++;
+    }
+}
+
+signed char sdf_open(char* filename)
+{
+    // <ZZ> This function opens a file in the database for reading line by line like a text
+    //      document.  It returns TRUE if the file was found, or FALSE if not.
+    sdf_read_line_number = 0;
+    sdf_read_remaining = 0;
+    sdf_read_first_line = FALSE;
+    sdf_read_file = NULL;
+
+	char path[256];
+	sprintf(path, "%s/%s", working_dir, filename);
+    if (read_file_to_buffer(path, &tempbuff) >= 0)
+    {
+        sdf_read_remaining = tempbuff.used;
+        sdf_read_file = tempbuff.mem;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+void set_working_dir(char *path)
+{
+	working_dir = path;
+}
+
+void sfs_init(void)
+{
+	alloc_buffer(&tempbuff, 1024 * 1024);
 }

@@ -1,6 +1,8 @@
 #ifndef _H_SOULFU_SCRIPT
 #define _H_SOULFU_SCRIPT
 
+#include "buffer.h"
+
 enum SSError
 {
 	SSE_NONE,
@@ -10,14 +12,12 @@ enum SSError
 	SSE_END
 };
 
-struct Buffer
-{
-	unsigned char *mem;
-	unsigned int used;
-	unsigned int max;
-};
-
+// path needs to be allocated during each API call
+void set_working_dir(char *path);
 enum SSError src_headerize(struct Buffer *script, struct Buffer *run);
-enum SSError src_compilerize(struct Buffer *script, struct Buffer *run);
+// filename without extension
+enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *filename);
+signed char src_define_setup(void);
+void sfs_init(void);
 
 #endif

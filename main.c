@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+#include "buffer.h"
 #include "soulfu_script.h"
 
 #define DEFAULT_SDF_DIR		"sfd"
@@ -34,8 +35,6 @@ enum Action action = A_NONE;
 
 void help(void);
 int compile(void);
-int alloc_buffer(struct Buffer *buff, unsigned int size);
-void free_buffer(struct Buffer *buff);
 
 int main(int argc, char *argv[])
 {
@@ -113,28 +112,6 @@ char *get_output_filename(char *input_filename)
 	return outbuff;
 }
 
-int read_file_to_buffer(char *filename, struct Buffer *buff)
-{
-	FILE *input = fopen(filename, "rb");
-	if (NULL == input)
-	{
-		return -1;
-	}
-	fseek(input, 0, SEEK_END);
-	buff->used = ftell(input);
-	fseek(input, 0, SEEK_SET);
-	fread(buff->mem, buff->used, 1, input);
-	fclose(input);
-	return 0;
-}
-
-int write_buffer_to_file(char *filename, const struct Buffer *buff)
-{
-	FILE *output = fopen(filename, "wb");
-	fwrite(buff->mem, buff->used, 1, output);
-	fclose(output);
-}
-
 int compile(void)
 {
 	if ('\0' == output_path[0])
@@ -161,6 +138,15 @@ int compile(void)
 #else
 	mkdir(output_path, 0755);
 #endif
+	sfs_init();
+	set_working_dir(output_path);
+
+	char cmd[256];
+	sprintf(cmd, "cp -f %s/DEFINE.TXT %s/DEFINE.TXT", input_path, output_path);
+	system(cmd);
+
+	// TODO: investigate why some symbols cannot be resolved
+	src_define_setup();
 
 	printf("Headerizing...\n");
 	struct dirent *entry = NULL;
@@ -176,6 +162,7 @@ int compile(void)
 				if (SSE_NONE != src_headerize(&src_buffer, &run_buffer))
 				{
 					printf("Headerizing failed for %s.\n", inpath);
+					continue;
 				}
 
 				char outpath[PATH_LEN];
@@ -187,31 +174,37 @@ int compile(void)
 	closedir(dirp);
 	printf("Headerizing done.\n");
 
-	// compilerizing needs header data from all SRC files
-	// look at src_mega_find_function for details
-	//src_compilerize(&src_buffer, &run_buffer);
+	printf("Compilerizing...\n");
+	dirp = opendir(input_path);
+	entry = NULL;
+	while (entry = readdir(dirp))
+	{
+		if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, ".."))
+		{
+			if (strstr(entry->d_name, ".SRC"))
+			{
+				char inpath[PATH_LEN];
+				sprintf(inpath, "%s/%s", input_path, entry->d_name);
+				read_file_to_buffer(inpath, &src_buffer);
+
+				char filename[16];
+				sscanf(entry->d_name, "%[^.]", filename);
+
+				if (SSE_NONE != src_compilerize(&src_buffer, &run_buffer, filename))
+				{
+					printf("Compilerizing failed for %s.\n", inpath);
+					break;
+				}
+
+				char outpath[PATH_LEN];
+				sprintf(outpath, "%s/%s", output_path, get_output_filename(entry->d_name));
+				write_buffer_to_file(outpath, &run_buffer);
+			}
+		}
+	}
+	closedir(dirp);
+	printf("Compilerizing done.\n");
 
 	free_buffer(&src_buffer);
 	free_buffer(&run_buffer);
-}
-
-int alloc_buffer(struct Buffer *buff, unsigned int size)
-{
-	buff->mem = malloc(size);
-	if (!buff->mem)
-		return -1;
-	buff->max = size;
-	buff->used = 0;
-	return 0;
-}
-
-void free_buffer(struct Buffer *buff)
-{
-	if (buff->mem)
-	{
-		free(buff->mem);
-		buff->mem = NULL;
-		buff->used = 0;
-		buff->max = 0;
-	}
 }

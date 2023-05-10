@@ -1,8 +1,8 @@
 .PHONY: all clean
 
 PROJECT=ssc
-SRC=main.c soulfu_script.c
-INC=soulfu_script.h
+SRC=main.c buffer.c soulfu_script.c
+INC=buffer.h soulfu_script.h
 
 all: $(PROJECT)
 
