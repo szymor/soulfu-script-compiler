@@ -141,12 +141,8 @@ int compile(void)
 	sfs_init();
 	set_working_dir(output_path);
 
-	char cmd[256];
-	sprintf(cmd, "cp -f %s/DEFINE.TXT %s/DEFINE.TXT", input_path, output_path);
-	system(cmd);
-
 	// TODO: investigate why some symbols cannot be resolved
-	src_define_setup();
+	src_define_setup(input_path);
 
 	printf("Headerizing...\n");
 	struct dirent *entry = NULL;
@@ -184,6 +180,12 @@ int compile(void)
 			if (strstr(entry->d_name, ".SRC"))
 			{
 				char inpath[PATH_LEN];
+				char outpath[PATH_LEN];
+
+				// we need to load headerized RUN before compilerization
+				sprintf(outpath, "%s/%s", output_path, get_output_filename(entry->d_name));
+				read_file_to_buffer(outpath, &run_buffer);
+
 				sprintf(inpath, "%s/%s", input_path, entry->d_name);
 				read_file_to_buffer(inpath, &src_buffer);
 
@@ -196,8 +198,6 @@ int compile(void)
 					break;
 				}
 
-				char outpath[PATH_LEN];
-				sprintf(outpath, "%s/%s", output_path, get_output_filename(entry->d_name));
 				write_buffer_to_file(outpath, &run_buffer);
 			}
 		}

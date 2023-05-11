@@ -17,7 +17,7 @@ void set_working_dir(char *path);
 enum SSError src_headerize(struct Buffer *script, struct Buffer *run);
 // filename without extension
 enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *filename);
-signed char src_define_setup(void);
+signed char src_define_setup(char *dirpath);
 void sfs_init(void);
 
 #endif

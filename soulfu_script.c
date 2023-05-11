@@ -419,7 +419,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 			}
 		}
 	}
-	sdf_write_unsigned_short(run->mem +- (MAX_FAST_FUNCTION << 1), number_of_functions);
+	sdf_write_unsigned_short(run->mem + (MAX_FAST_FUNCTION << 1), number_of_functions);
 	// Something like this in the run_buffer...
 	//   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 	//   00 03 00 00
@@ -523,7 +523,6 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 				}
 			}
 
-
 			// Look through all of the tokens for a string token...
 			for (int i = 0; i < token_count; ++i)
 			{
@@ -549,7 +548,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 				{
 					// Check for #define'd strings...
 					int def = src_get_define(token_buffer[i]);
-					if(def >= 0)
+					if (def >= 0)
 					{
 						//debug("Sneaky define... %s\n", define_token[def]);
 
@@ -585,7 +584,7 @@ enum SSError src_headerize(struct Buffer *script, struct Buffer *run)
 			}
 		}
 	}
-	sdf_write_unsigned_short(run->mem + (MAX_FAST_FUNCTION<<1)+2, number_of_strings);
+	sdf_write_unsigned_short(run->mem + (MAX_FAST_FUNCTION << 1) + 2, number_of_strings);
 	// Something like this in the run_buffer...
 	//   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 	//   00 03 00 02
@@ -627,7 +626,7 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 	error = SSE_NONE;
 
 	// Log what we're doing
-	debug("Compilerizing...\n");
+	//debug("Compilerizing...\n");
 
 	// Undefine any variables and defines used by the last file
 	src_undefine_level(SRC_TEMPORARY_FILE);
@@ -663,7 +662,7 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 	while (sdf_read_line())
 	{
 		// Count the indentation (by 2's), and skip over any whitespace...
-		indent = count_indentation (sdf_read_file);
+		indent = count_indentation(sdf_read_file);
 		sdf_read_file += indent;
 		sdf_read_remaining -= indent;
 		indent = indent >> 1;
@@ -683,8 +682,8 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 							{
 								if (sdf_read_file[6] == 'e')
 								{
-									sdf_read_file+=7;
-									sdf_read_remaining-=7;
+									sdf_read_file += 7;
+									sdf_read_remaining -= 7;
 									if (src_read_token(token_buffer[0]))
 									{
 										src_add_define(token_buffer[0], sdf_read_file, SRC_TEMPORARY_FILE);
@@ -836,8 +835,8 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 					// Skip over the return value...
 					i = 0;
 					last_function_returns_integer = TRUE;
-					if(strcmp(token_buffer[0], "INT") == 0)  i++;
-					if(strcmp(token_buffer[0], "FLOAT") == 0) { last_function_returns_integer = FALSE; i++; }
+					if (strcmp(token_buffer[0], "INT") == 0)  i++;
+					if (strcmp(token_buffer[0], "FLOAT") == 0) { last_function_returns_integer = FALSE; i++; }
 
 					// Find the function in the RUN header...
 					function_offset = src_find_function_entry(src_buffer, token_buffer[i]);
@@ -924,7 +923,7 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 					// Must have a conditional to change indentation levels...
 					if (indent > last_indent && last_indent != 0)
 					{
-						if(last_jump_type_found[last_indent] == SRC_JUMP_INVALID)
+						if (last_jump_type_found[last_indent] == SRC_JUMP_INVALID)
 						{
 							// Throw an error
 							debug("Error: (line %d), Must have a conditional statement to indent\n", sdf_read_line_number);
@@ -963,7 +962,7 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 					src_generate_opcodes(token_order - 1);
 
 					// Figure out where to write jump locations and stuff for indentation levels
-					if (error != SSE_NONE)
+					if (error == SSE_NONE)
 					{
 						if (strcmp(token_buffer[0], "IF") == 0)
 						{
@@ -1024,6 +1023,7 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 			// Should overwrite headerized RUN file...
 			// Copy the data out of the buffer...
 			memcpy(run->mem, src_buffer, src_buffer_used);
+			run->used = src_buffer_used;
 	}
 	else
 	{
@@ -1579,24 +1579,22 @@ int src_find_function_entry(unsigned char* filedata, char* functionname)
 	int i;
 	unsigned char* filedatastart;
 
-
-
 	// For each function in the header...
 	filedatastart = filedata;
-	filedata+=MAX_FAST_FUNCTION<<1;  // Skip the fast function lookups...
+	filedata += MAX_FAST_FUNCTION << 1;  // Skip the fast function lookups...
 	number_of_functions = sdf_read_unsigned_short(filedata);
-	filedata+=4;
+	filedata += 4;
 	repeat(i, number_of_functions)
 	{
 		// Check for a match...
-		if(strcmp(functionname, (filedata+2)) == 0)
+		if (strcmp(functionname, (filedata+2)) == 0)
 		{
 			return (filedata-filedatastart);
 		}
 		// Go to the next entry
-		filedata+=2;                    // Skip the address
-		filedata+=strlen(filedata)+1;   // Skip the name and 0
-		filedata+=strlen(filedata)+1;   // Skip the return and any arguments and 0
+		filedata += 2;                    // Skip the address
+		filedata += strlen(filedata)+1;   // Skip the name and 0
+		filedata += strlen(filedata)+1;   // Skip the return and any arguments and 0
 	}
 	// Didn't find a match
 	return 0;
@@ -2810,17 +2808,18 @@ unsigned char* sdf_find_filetype(char *filename, char *filetype)
     return tempbuff.mem;
 }
 
-signed char src_define_setup(void)
+signed char src_define_setup(char *dirpath)
 {
     // <ZZ> This function looks at "DEFINE.TXT" to see what global #define's we've got,
     //      including ID strings.  It returns TRUE if it worked okay, or FALSE if not.
     unsigned char indent;
-
+	char path[256];
+	sprintf(path, "%s/DEFINE.TXT", dirpath);
 
     obj_reset_property();
     next_token_may_be_negative = TRUE;
     src_num_define = 0;
-    if (sdf_open("DEFINE.TXT"))
+    if (sdf_open(path))
     {
         log_message("INFO:   Setting up the global #defines...");
         while(sdf_read_line())
@@ -2943,9 +2942,7 @@ signed char sdf_open(char* filename)
     sdf_read_first_line = FALSE;
     sdf_read_file = NULL;
 
-	char path[256];
-	sprintf(path, "%s/%s", working_dir, filename);
-    if (read_file_to_buffer(path, &tempbuff) >= 0)
+    if (read_file_to_buffer(filename, &tempbuff) >= 0)
     {
         sdf_read_remaining = tempbuff.used;
         sdf_read_file = tempbuff.mem;
