@@ -140,8 +140,6 @@ int compile(void)
 #endif
 	sfs_init();
 	set_working_dir(output_path);
-
-	// TODO: investigate why some symbols cannot be resolved
 	src_define_setup(input_path);
 
 	printf("Headerizing...\n");

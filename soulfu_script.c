@@ -1036,7 +1036,7 @@ enum SSError src_compilerize(struct Buffer *script, struct Buffer *run, char *fi
 static void src_undefine_level(char temporary_level)
 {
 	// <ZZ> This function gets rid of any defines that we don't need
-	for (int i; i < src_num_define; ++i)
+	for (int i = 0; i < src_num_define; ++i)
 	{
 		if(define_temporary_level[i] >= temporary_level)
 		{
@@ -2819,6 +2819,7 @@ signed char src_define_setup(char *dirpath)
     obj_reset_property();
     next_token_may_be_negative = TRUE;
     src_num_define = 0;
+
     if (sdf_open(path))
     {
         log_message("INFO:   Setting up the global #defines...");
@@ -2829,7 +2830,6 @@ signed char src_define_setup(char *dirpath)
             sdf_read_file+=indent;
             sdf_read_remaining-=indent;
             indent = indent>>1;
-
 
             // Check for a #define...
             if(sdf_read_file[0] == '#')
