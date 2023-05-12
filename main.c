@@ -19,7 +19,8 @@ enum ErrCode
 	EC_NONE,
 	EC_NOACTION,
 	EC_NODIR,
-	EC_BADARGS
+	EC_BADARGS,
+	EC_COMPILE
 };
 
 enum Action
@@ -114,6 +115,8 @@ char *get_output_filename(char *input_filename)
 
 int compile(void)
 {
+	enum ErrCode ret = EC_NONE;
+
 	if ('\0' == output_path[0])
 	{
 		strcpy(output_path, input_path);
@@ -156,7 +159,8 @@ int compile(void)
 				if (SSE_NONE != src_headerize(&src_buffer, &run_buffer))
 				{
 					printf("Headerizing failed for %s.\n", inpath);
-					continue;
+					ret = EC_COMPILE;
+					break;
 				}
 
 				char outpath[PATH_LEN];
@@ -167,6 +171,9 @@ int compile(void)
 	}
 	closedir(dirp);
 	printf("Headerizing done.\n");
+
+	if (EC_NONE != ret)
+		return ret;
 
 	printf("Compilerizing...\n");
 	dirp = opendir(input_path);
@@ -193,6 +200,7 @@ int compile(void)
 				if (SSE_NONE != src_compilerize(&src_buffer, &run_buffer, filename))
 				{
 					printf("Compilerizing failed for %s.\n", inpath);
+					ret = EC_COMPILE;
 					break;
 				}
 
@@ -205,4 +213,5 @@ int compile(void)
 
 	free_buffer(&src_buffer);
 	free_buffer(&run_buffer);
+	return ret;
 }
