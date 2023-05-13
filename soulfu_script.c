@@ -1153,7 +1153,7 @@ static signed char src_read_token(unsigned char* buffer)
 		sdf_read_remaining--;
 		sdf_read_file++;
 		count++;
-		while(count < SRC_MAX_TOKEN_SIZE-2 && sdf_read_remaining > 0 && (*sdf_read_file) != '"' && (*sdf_read_file) != 0)
+		while(count < SRC_MAX_TOKEN_SIZE-2 && sdf_read_remaining > 0 && (*sdf_read_file) != '"' && (*sdf_read_file) != 0 && (*sdf_read_file) != '\n')
 		{
 			buffer[count] = (*sdf_read_file);
 			sdf_read_remaining--;
@@ -1199,7 +1199,7 @@ static signed char src_read_token(unsigned char* buffer)
 		else
 		{
 			// Read one character...
-			if((*sdf_read_file) != 0)
+			if((*sdf_read_file) != 0 && (*sdf_read_file) != '\n')
 			{
 				if(sdf_read_remaining > 0)
 				{
@@ -1289,8 +1289,10 @@ static signed char sdf_read_line(void)
 		}
 		else
 		{
-			// Skip over the line until we hit a 0
-			while((*sdf_read_file) != 0 && sdf_read_remaining > 0)
+			// Skip over the line until we hit a 0 or '\n'
+			while((*sdf_read_file) != 0 &&
+				(*sdf_read_file) != '\n' &&
+				sdf_read_remaining > 0)
 			{
 				sdf_read_remaining--;
 				sdf_read_file++;
@@ -1298,8 +1300,10 @@ static signed char sdf_read_line(void)
 		}
 
 
-		// Skip any 0's, so sdf_read_file starts on some good characters...
-		while((*sdf_read_file) == 0 && sdf_read_remaining > 0)
+		// Skip any 0's or \n's, so sdf_read_file starts on some good characters...
+		while(((*sdf_read_file) == 0 ||
+				(*sdf_read_file) == '\n') &&
+			sdf_read_remaining > 0)
 		{
 			sdf_read_remaining--;
 			sdf_read_file++;
